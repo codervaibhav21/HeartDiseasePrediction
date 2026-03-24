@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CardioScan — Heart Disease Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@300;400;500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & tokens ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy:   #0d1b2a;
+  --navy2:  #152232;
+  --navy3:  #1c2e42;
+  --slate:  #2a3f55;
+  --line:   rgba(255,255,255,0.08);
+  --amber:  #f5a623;
+  --amber2: #ffc15e;
+  --red:    #e63946;
+  --green:  #2ec4b6;
+  --white:  #f0f4f8;
+  --muted:  #7a97b0;
+  --mono:   'IBM Plex Mono', monospace;
+  --serif:  'Playfair Display', serif;
+  --sans:   'Plus Jakarta Sans', sans-serif;
+  --radius: 14px;
+  --shadow: 0 24px 60px rgba(0,0,0,0.45);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  background: var(--navy);
+  color: var(--white);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Animated grid background ───────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(245,166,35,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 15% 10%, rgba(245,166,35,0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 85% 90%, rgba(46,196,182,0.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* ── Layout wrapper ─────────────────────────────────────────────────── */
+.wrap {
+  position: relative; z-index: 1;
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+header {
+  padding: 1.6rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+
+.logo {
+  display: flex; align-items: center; gap: 0.9rem;
+}
+
+.logo-heart {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, #e63946, #c1121f);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+  box-shadow: 0 0 0 0 rgba(230,57,70,0.4);
+  animation: pulse-ring 2s ease-out infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(230,57,70,0.4); }
+  70%  { box-shadow: 0 0 0 14px rgba(230,57,70,0); }
+  100% { box-shadow: 0 0 0 0 rgba(230,57,70,0); }
+}
+
+.logo-name {
+  font-family: var(--serif);
+  font-size: 1.55rem;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.logo-name em {
+  font-style: italic;
+  color: var(--amber);
+}
+.logo-tag {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+.header-chips {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end;
+}
+.chip {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 100px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.chip.live {
+  border-color: rgba(46,196,182,0.4);
+  color: var(--green);
+  background: rgba(46,196,182,0.06);
+}
+.chip.live::before {
+  content: '●  ';
+  animation: blink 1.4s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── ECG Hero ───────────────────────────────────────────────────────── */
+.ecg-hero {
+  position: relative;
+  height: 72px;
+  margin: 2rem 0 1.5rem;
+  overflow: hidden;
+}
+.ecg-hero svg {
+  width: 100%; height: 100%;
+}
+.ecg-line {
+  stroke: var(--amber);
+  stroke-width: 1.5;
+  fill: none;
+  filter: drop-shadow(0 0 6px rgba(245,166,35,0.5));
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: draw-ecg 3s ease forwards, ecg-loop 4s linear 3s infinite;
+}
+@keyframes draw-ecg {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ecg-loop {
+  0%   { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -1200; }
+}
+.ecg-glow {
+  stroke: var(--amber);
+  stroke-width: 8;
+  fill: none;
+  opacity: 0.08;
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: draw-ecg 3s ease forwards, ecg-loop 4s linear 3s infinite;
+}
+
+/* ── Stats row ──────────────────────────────────────────────────────── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+.stat {
+  background: var(--navy2);
+  padding: 1.1rem 1.2rem;
+  text-align: center;
+  transition: background 0.2s;
+}
+.stat:hover { background: var(--navy3); }
+.stat-val {
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  color: var(--amber);
+  line-height: 1;
+  font-weight: 700;
+}
+.stat-lbl {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 0.35rem;
+}
+
+/* ── Main layout ────────────────────────────────────────────────────── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 1.5rem;
+  padding-bottom: 3rem;
+  align-items: start;
+}
+
+/* ── Form card ──────────────────────────────────────────────────────── */
+.card {
+  background: var(--navy2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card-head {
+  padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.card-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--white);
+}
+.step-indicator {
+  display: flex; gap: 0.4rem; align-items: center;
+}
+.step-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--slate);
+  transition: all 0.3s;
+}
+.step-dot.active {
+  background: var(--amber);
+  box-shadow: 0 0 8px rgba(245,166,35,0.6);
+}
+.step-dot.done {
+  background: var(--green);
+}
+
+/* ── Steps ──────────────────────────────────────────────────────────── */
+.steps-wrap { position: relative; }
+.step-panel {
+  display: none;
+  padding: 1.5rem;
+  animation: fadeUp 0.35s ease;
+}
+.step-panel.active { display: block; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.step-heading {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  margin-bottom: 0.3rem;
+  font-style: italic;
+}
+.step-sub {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1.4rem;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.4rem;
+}
+.field-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.field-grid.cols-1 { grid-template-columns: 1fr; }
+
+.field { display: flex; flex-direction: column; gap: 0.35rem; }
+.field label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+input[type=number], select {
+  background: var(--navy3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--white);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  padding: 0.65rem 0.85rem;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+}
+input[type=number]:focus, select:focus {
+  border-color: rgba(245,166,35,0.5);
+  box-shadow: 0 0 0 3px rgba(245,166,35,0.1);
+}
+input[type=number]::placeholder { color: var(--slate); }
+select option { background: #1c2e42; }
+
+/* range input */
+.range-wrap { position: relative; }
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%; height: 4px;
+  background: var(--slate);
+  border-radius: 2px;
+  border: none;
+  outline: none;
+  padding: 0;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px rgba(245,166,35,0.5);
+  cursor: pointer;
+}
+.range-val {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--amber);
+  margin-top: 0.35rem;
+  text-align: right;
+}
+
+/* ── Step nav ───────────────────────────────────────────────────────── */
+.step-nav {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--line);
+}
+.btn {
+  flex: 1;
+  padding: 0.8rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  transition: all 0.2s;
+}
+.btn-prev {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.btn-prev:hover { border-color: var(--muted); color: var(--white); }
+.btn-next {
+  background: var(--amber);
+  color: var(--navy);
+}
+.btn-next:hover { background: var(--amber2); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(245,166,35,0.3); }
+.btn-submit {
+  background: linear-gradient(135deg, #e63946, #c1121f);
+  color: #fff;
+  flex: 2;
+}
+.btn-submit:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(230,57,70,0.35); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+/* ── Right column ───────────────────────────────────────────────────── */
+.right-col { display: flex; flex-direction: column; gap: 1rem; }
+
+/* ── Result card ────────────────────────────────────────────────────── */
+.result-card {
+  background: var(--navy2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  transition: border-color 0.5s;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Corner accent lines */
+.result-card::before, .result-card::after {
+  content: '';
+  position: absolute;
+  width: 24px; height: 24px;
+  border-color: var(--amber);
+  border-style: solid;
+  opacity: 0.3;
+  transition: opacity 0.3s;
+}
+.result-card::before { top: 12px; left: 12px; border-width: 1px 0 0 1px; }
+.result-card::after  { bottom: 12px; right: 12px; border-width: 0 1px 1px 0; }
+
+.result-idle-icon {
+  width: 64px; height: 64px;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6rem;
+  margin-bottom: 1rem;
+  animation: slow-spin 12s linear infinite;
+}
+@keyframes slow-spin { to { transform: rotate(360deg); } }
+
+.idle-text {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.idle-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+  line-height: 1.5;
+}
+
+/* Result display */
+.gauge-wrap { position: relative; width: 140px; height: 140px; margin-bottom: 1.2rem; }
+.gauge-svg { width: 140px; height: 140px; transform: rotate(-90deg); }
+.gauge-track { stroke: var(--navy3); stroke-width: 8; fill: none; }
+.gauge-fill  { stroke-width: 8; fill: none; stroke-linecap: round;
+               stroke-dasharray: 339.3; stroke-dashoffset: 339.3;
+               transition: stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1), stroke 0.5s; }
+.gauge-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.gauge-pct {
+  font-family: var(--serif);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.gauge-unit {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.result-verdict {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+.result-detail {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--muted);
+  line-height: 1.7;
+  max-width: 280px;
+}
+
+/* bars */
+.prob-bars { width: 100%; margin-top: 1.2rem; }
+.prob-row {
+  display: flex; align-items: center; gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+.prob-row-lbl { font-family: var(--mono); font-size: 0.6rem; color: var(--muted); width: 52px; text-align: right; flex-shrink: 0; }
+.prob-track { flex: 1; height: 4px; background: var(--navy3); border-radius: 2px; overflow: hidden; }
+.prob-fill { height: 100%; border-radius: 2px; transition: width 1s ease; width: 0; }
+.prob-num { font-family: var(--mono); font-size: 0.6rem; width: 36px; flex-shrink: 0; }
+
+/* ── Model info card ────────────────────────────────────────────────── */
+.info-card {
+  background: var(--navy2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.4rem;
+}
+.info-head {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+.info-head-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--white);
+}
+.info-head-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--line) 0%, transparent 100%);
+}
+.info-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.info-row:last-child { border-bottom: none; }
+.info-key { font-family: var(--mono); font-size: 0.62rem; color: var(--muted); }
+.info-val { font-family: var(--mono); font-size: 0.68rem; color: var(--white); }
+.info-val.green { color: var(--green); }
+.info-val.amber { color: var(--amber); }
+
+/* ── Progress bar ───────────────────────────────────────────────────── */
+.progress-bar {
+  height: 2px;
+  background: var(--line);
+  border-radius: 1px;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber), var(--amber2));
+  border-radius: 1px;
+  transition: width 0.4s ease;
+  width: 33.33%;
+}
+
+/* ── Spinner ────────────────────────────────────────────────────────── */
+.spinner {
+  width: 36px; height: 36px;
+  border: 2px solid var(--line);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-bottom: 1rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Disclaimer ─────────────────────────────────────────────────────── */
+.disclaimer {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--muted);
+  padding: 1.5rem 0 2rem;
+  border-top: 1px solid var(--line);
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .main { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: repeat(3, 1fr); }
+  .field-grid.cols-3 { grid-template-columns: 1fr 1fr; }
+  .header-chips { display: none; }
+}
+@media (max-width: 500px) {
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .field-grid, .field-grid.cols-3 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <div class="logo-heart">♥</div>
+      <div>
+        <div class="logo-name">Cardio<em>Scan</em></div>
+        <div class="logo-tag">Heart Disease Detection System</div>
+      </div>
+    </div>
+    <div class="header-chips">
+      <span class="chip live">System Online</span>
+      <span class="chip">Logistic Regression</span>
+      <span class="chip">92.5% Accuracy</span>
+      <span class="chip">600 Samples</span>
+    </div>
+  </header>
+
+  <!-- ── ECG Hero ────────────────────────────────────────────────────── -->
+  <div class="ecg-hero">
+    <svg viewBox="0 0 1100 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline class="ecg-glow" points="
+        0,36 60,36 80,36 95,36 110,4 125,68 140,36 180,36
+        200,36 215,36 230,8 245,64 260,36 300,36
+        320,36 335,36 350,6 365,66 380,36 420,36
+        440,36 455,36 470,10 485,62 500,36 540,36
+        560,36 575,36 590,8 605,64 620,36 660,36
+        680,36 695,36 710,6 725,66 740,36 780,36
+        800,36 815,36 830,10 845,62 860,36 900,36
+        920,36 935,36 950,8 965,64 980,36 1020,36
+        1040,36 1055,36 1070,6 1085,66 1100,36"/>
+      <polyline class="ecg-line" points="
+        0,36 60,36 80,36 95,36 110,4 125,68 140,36 180,36
+        200,36 215,36 230,8 245,64 260,36 300,36
+        320,36 335,36 350,6 365,66 380,36 420,36
+        440,36 455,36 470,10 485,62 500,36 540,36
+        560,36 575,36 590,8 605,64 620,36 660,36
+        680,36 695,36 710,6 725,66 740,36 780,36
+        800,36 815,36 830,10 845,62 860,36 900,36
+        920,36 935,36 950,8 965,64 980,36 1020,36
+        1040,36 1055,36 1070,6 1085,66 1100,36"/>
+    </svg>
+  </div>
+
+  <!-- ── Stats row ───────────────────────────────────────────────────── -->
+  <div class="stats-row">
+    <div class="stat"><div class="stat-val" id="sTotal">—</div><div class="stat-lbl">Total Samples</div></div>
+    <div class="stat"><div class="stat-val" id="sDisease">—</div><div class="stat-lbl">Disease Cases</div></div>
+    <div class="stat"><div class="stat-val" id="sHealthy">—</div><div class="stat-lbl">Healthy Cases</div></div>
+    <div class="stat"><div class="stat-val">92.5%</div><div class="stat-lbl">Accuracy</div></div>
+    <div class="stat"><div class="stat-val">13</div><div class="stat-lbl">Features</div></div>
+  </div>
+
+  <!-- ── Main ────────────────────────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- LEFT: Form ──────────────────────────────────────────────────── -->
+    <div>
+      <div class="card">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="card-head">
+          <span class="card-title" id="stepTitle">Step 1 — Patient Demographics</span>
+          <div class="step-indicator">
+            <div class="step-dot active" id="dot0"></div>
+            <div class="step-dot" id="dot1"></div>
+            <div class="step-dot" id="dot2"></div>
+          </div>
+        </div>
+
+        <div class="steps-wrap">
+
+          <!-- Step 1: Demographics -->
+          <div class="step-panel active" id="step0">
+            <div class="step-heading">Patient Profile</div>
+            <div class="step-sub">Basic demographic &amp; lifestyle data</div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Age (years)</label>
+                <input type="number" id="age" min="20" max="80" placeholder="e.g. 58" value="58">
+              </div>
+              <div class="field">
+                <label>Sex</label>
+                <select id="sex">
+                  <option value="1">Male</option>
+                  <option value="0">Female</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Fasting Blood Sugar &gt; 120 mg/dl</label>
+                <select id="fbs">
+                  <option value="0">No (&lt; 120 mg/dl)</option>
+                  <option value="1">Yes (&gt; 120 mg/dl)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Resting ECG Result</label>
+                <select id="restecg">
+                  <option value="0">Normal</option>
+                  <option value="1">ST-T Wave Abnormality</option>
+                  <option value="2">Left Ventricular Hypertrophy</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Vitals -->
+          <div class="step-panel" id="step1">
+            <div class="step-heading">Vital Measurements</div>
+            <div class="step-sub">Blood pressure, cholesterol &amp; heart rate</div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Resting Blood Pressure (mmHg)</label>
+                <input type="number" id="trestbps" min="80" max="220" placeholder="120" value="132">
+              </div>
+              <div class="field">
+                <label>Serum Cholesterol (mg/dl)</label>
+                <input type="number" id="chol" min="100" max="600" placeholder="200" value="254">
+              </div>
+            </div>
+            <div class="field-grid cols-1">
+              <div class="field">
+                <label>Max Heart Rate Achieved (bpm) — <span id="thalachDisplay" style="color:var(--amber)">152</span></label>
+                <input type="range" id="thalach" min="60" max="210" value="152"
+                  oninput="document.getElementById('thalachDisplay').textContent=this.value">
+              </div>
+            </div>
+            <div class="field-grid" style="margin-top:1rem">
+              <div class="field">
+                <label>ST Depression (Oldpeak) — <span id="oldpeakDisplay" style="color:var(--amber)">1.2</span></label>
+                <input type="range" id="oldpeak" min="0" max="6.2" step="0.1" value="1.2"
+                  oninput="document.getElementById('oldpeakDisplay').textContent=parseFloat(this.value).toFixed(1)">
+              </div>
+              <div class="field">
+                <label>Exercise Induced Angina</label>
+                <select id="exang">
+                  <option value="0">No</option>
+                  <option value="1">Yes</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Cardiac Tests -->
+          <div class="step-panel" id="step2">
+            <div class="step-heading">Cardiac Test Results</div>
+            <div class="step-sub">Chest pain type, vessel count &amp; thalassemia</div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Chest Pain Type</label>
+                <select id="cp">
+                  <option value="0">Typical Angina</option>
+                  <option value="1">Atypical Angina</option>
+                  <option value="2">Non-anginal Pain</option>
+                  <option value="3">Asymptomatic</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Slope of Peak ST Segment</label>
+                <select id="slope">
+                  <option value="0">Upsloping</option>
+                  <option value="1">Flat</option>
+                  <option value="2">Downsloping</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Major Vessels Coloured (0–4)</label>
+                <select id="ca">
+                  <option value="0">0 vessels</option>
+                  <option value="1">1 vessel</option>
+                  <option value="2">2 vessels</option>
+                  <option value="3">3 vessels</option>
+                  <option value="4">4 vessels</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Thalassemia</label>
+                <select id="thal">
+                  <option value="1">Normal</option>
+                  <option value="2">Fixed Defect</option>
+                  <option value="3">Reversible Defect</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /steps-wrap -->
+
+        <!-- Nav buttons -->
+        <div class="step-nav">
+          <button class="btn btn-prev" id="btnPrev" onclick="changeStep(-1)" style="display:none">← Back</button>
+          <button class="btn btn-next" id="btnNext" onclick="changeStep(1)">Continue →</button>
+          <button class="btn btn-submit" id="btnSubmit" style="display:none" onclick="runAnalysis()">
+            ♥ &nbsp; Analyse Risk
+          </button>
+        </div>
+      </div><!-- /card -->
+    </div><!-- /left -->
+
+    <!-- RIGHT: Results + Info ───────────────────────────────────────── -->
+    <div class="right-col">
+
+      <!-- Result card -->
+      <div class="result-card" id="resultCard">
+        <div class="result-idle-icon">⊕</div>
+        <div class="idle-text">Awaiting Patient Data</div>
+        <div class="idle-sub">Complete all 3 steps and<br>click Analyse Risk to see results.</div>
+      </div>
+
+      <!-- Model info -->
+      <div class="info-card">
+        <div class="info-head">
+          <span class="info-head-title">Model Metadata</span>
+          <div class="info-head-line"></div>
+        </div>
+        <div class="info-row"><span class="info-key">Algorithm</span><span class="info-val amber">Logistic Regression</span></div>
+        <div class="info-row"><span class="info-key">Solver</span><span class="info-val">LBFGS</span></div>
+        <div class="info-row"><span class="info-key">Regularisation C</span><span class="info-val">1.0</span></div>
+        <div class="info-row"><span class="info-key">Training samples</span><span class="info-val">480 / 600</span></div>
+        <div class="info-row"><span class="info-key">Test samples</span><span class="info-val">120 / 600</span></div>
+        <div class="info-row"><span class="info-key">Feature scaling</span><span class="info-val">StandardScaler</span></div>
+        <div class="info-row"><span class="info-key">Overall accuracy</span><span class="info-val green">92.5%</span></div>
+        <div class="info-row"><span class="info-key">Precision (disease)</span><span class="info-val green">93%</span></div>
+        <div class="info-row"><span class="info-key">Recall (disease)</span><span class="info-val green">94%</span></div>
+      </div>
+
+    </div><!-- /right -->
+  </div><!-- /main -->
+
+  <div class="disclaimer">
+    ⚠ CardioScan is a research &amp; educational tool — not a certified medical device.<br>
+    Always consult a qualified cardiologist for diagnosis and treatment decisions.
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+/* ── State ──────────────────────────────────────────────────────────── */
+let currentStep = 0;
+const TOTAL_STEPS = 3;
+
+/* ── Load dataset stats ─────────────────────────────────────────────── */
+async function loadStats() {
+  try {
+    const r = await fetch('/stats');
+    const d = await r.json();
+    document.getElementById('sTotal').textContent   = d.total;
+    document.getElementById('sDisease').textContent = d.disease;
+    document.getElementById('sHealthy').textContent = d.healthy;
+  } catch(e) {}
+}
+loadStats();
+
+/* ── Step navigation ────────────────────────────────────────────────── */
+const TITLES = [
+  'Step 1 — Patient Demographics',
+  'Step 2 — Vital Measurements',
+  'Step 3 — Cardiac Test Results',
+];
+
+function changeStep(dir) {
+  const next = currentStep + dir;
+  if (next < 0 || next >= TOTAL_STEPS) return;
+
+  document.getElementById('step' + currentStep).classList.remove('active');
+  document.getElementById('dot' + currentStep).classList.remove('active');
+  document.getElementById('dot' + currentStep).classList.add('done');
+
+  currentStep = next;
+
+  document.getElementById('step' + currentStep).classList.add('active');
+  document.getElementById('dot' + currentStep).classList.remove('done');
+  document.getElementById('dot' + currentStep).classList.add('active');
+  document.getElementById('stepTitle').textContent = TITLES[currentStep];
+
+  // progress bar
+  document.getElementById('progressFill').style.width =
+    ((currentStep + 1) / TOTAL_STEPS * 100) + '%';
+
+  // buttons
+  document.getElementById('btnPrev').style.display   = currentStep > 0 ? '' : 'none';
+  document.getElementById('btnNext').style.display   = currentStep < TOTAL_STEPS - 1 ? '' : 'none';
+  document.getElementById('btnSubmit').style.display = currentStep === TOTAL_STEPS - 1 ? '' : 'none';
+}
+
+/* ── Analyse ────────────────────────────────────────────────────────── */
+async function runAnalysis() {
+  const card = document.getElementById('resultCard');
+  const btn  = document.getElementById('btnSubmit');
+  btn.disabled = true;
+
+  card.innerHTML = `<div class="spinner"></div>
+    <div class="idle-text" style="color:var(--amber)">Analysing…</div>
+    <div class="idle-sub">Running logistic regression model</div>`;
+
+  const ids = ['age','sex','cp','trestbps','chol','fbs','restecg',
+               'thalach','exang','oldpeak','slope','ca','thal'];
+
+  const payload = {};
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (!el) { alert('Missing field: ' + id); btn.disabled = false; return; }
+    payload[id] = parseFloat(el.value);
+  }
+
+  try {
+    const res  = await fetch('/predict', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderResult(data);
+  } catch(e) {
+    card.innerHTML = `<div style="color:var(--red);font-family:var(--mono);font-size:0.8rem">Error: ${e.message}</div>`;
+  }
+
+  btn.disabled = false;
+}
+
+/* ── Render result ──────────────────────────────────────────────────── */
+function renderResult(d) {
+  const card = document.getElementById('resultCard');
+
+  const colorMap = {
+    green: { stroke: '#2ec4b6', text: '#2ec4b6', glow: 'rgba(46,196,182,0.25)' },
+    amber: { stroke: '#f5a623', text: '#f5a623', glow: 'rgba(245,166,35,0.25)'  },
+    red:   { stroke: '#e63946', text: '#e63946', glow: 'rgba(230,57,70,0.25)'   },
+  };
+  const c = colorMap[d.color];
+
+  const circumference = 339.3;
+  const offset = circumference - (d.risk_pct / 100) * circumference;
+
+  const icon     = d.has_disease ? '⚠' : '✓';
+  const recLine1 = d.has_disease
+    ? 'Heart disease <strong style="color:var(--red)">detected</strong>.'
+    : 'No heart disease <strong style="color:var(--green)">detected</strong>.';
+  const recLine2 = d.color === 'red'
+    ? 'Immediate cardiology consultation recommended.'
+    : d.color === 'amber'
+    ? 'Schedule follow-up with a cardiologist.'
+    : 'Continue routine preventive care.';
+
+  card.style.borderColor = c.stroke + '44';
+
+  card.innerHTML = `
+    <div class="gauge-wrap">
+      <svg class="gauge-svg" viewBox="0 0 120 120">
+        <circle class="gauge-track" cx="60" cy="60" r="54"/>
+        <circle class="gauge-fill" id="gaugeFill" cx="60" cy="60" r="54"
+          stroke="${c.stroke}"
+          style="filter:drop-shadow(0 0 8px ${c.glow})"/>
+      </svg>
+      <div class="gauge-center">
+        <div class="gauge-pct" style="color:${c.text}">${d.risk_pct}%</div>
+        <div class="gauge-unit">risk score</div>
+      </div>
+    </div>
+
+    <div class="result-verdict" style="color:${c.text}">${icon} ${d.level}</div>
+    <div class="result-detail">
+      ${recLine1}<br>${recLine2}<br>
+      <span style="opacity:0.6">Confidence: ${Math.max(d.risk_pct, d.safe_pct)}%</span>
+    </div>
+
+    <div class="prob-bars">
+      <div class="prob-row">
+        <div class="prob-row-lbl">Healthy</div>
+        <div class="prob-track"><div class="prob-fill" id="barSafe" style="background:#2ec4b6"></div></div>
+        <div class="prob-num" style="color:#2ec4b6">${d.safe_pct}%</div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-row-lbl">Disease</div>
+        <div class="prob-track"><div class="prob-fill" id="barRisk" style="background:${c.stroke}"></div></div>
+        <div class="prob-num" style="color:${c.stroke}">${d.risk_pct}%</div>
+      </div>
+    </div>`;
+
+  // Animate gauge + bars after paint
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const gf = document.getElementById('gaugeFill');
+      if (gf) gf.style.strokeDashoffset = offset;
+      const bs = document.getElementById('barSafe');
+      const br = document.getElementById('barRisk');
+      if (bs) bs.style.width = d.safe_pct + '%';
+      if (br) br.style.width = d.risk_pct + '%';
+    });
+  });
+}
+</script>
+</body>
+</html>
